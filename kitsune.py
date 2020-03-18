@@ -150,7 +150,7 @@ class server():
                 connected = False
                 self.server_socket.shutdown(socket.SHUT_RDWR)
                 countdown('Сервер недоступен, переотправка сообщения через: ', reconnect_seconds)
-                self.__init__("127.0.0.1", 36444)
+                mediaKitsune = server(IP, PORT, reconnect_seconds)
                 continue
 
     def receive(self):
@@ -279,7 +279,7 @@ if __name__ == '__main__':
     HEADER_LENGTH = 10
     IP, PORT = ("5.181.166.103", 37777)
     reconnect_seconds = 30
-    version = "1.0.0.5"
+    version = "1.0.0.6"
     client_token = get_token()
 
     try:
