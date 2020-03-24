@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-import os, re, sys, time, errno, socket
+import os, re, sys, time, errno, socket, json
 import pickle, select, string, secrets, shutil
 from time import sleep
 import requests, argparse, colorama
@@ -69,6 +69,7 @@ def download_update(threads_list):
         print("Видимо, мы словили ошибку, отпишите @hibryid в telegram")
         sleep(2000)
 
+
 def download(mdc_doc_token):
     try:
         print("Ожидаю ответ Mediacoin...")
@@ -81,16 +82,55 @@ def download(mdc_doc_token):
             except(Exception):
                 sleep(2)
 
-        mdcURL = "http://127.0.0.1:8102/-/media-download-start?doc_id={}".format(mdc_doc_token)
-        print("Ожидаю ответ Mediacoin на скачивание...")
-        while True:
-            download_response = requests.post(mdcURL).content.decode('utf-8')
-            sleep(3)
-            if download_response == 'true':
-                print("Mediacoin подтвердил скачивание")
-                break
+        infoURL = "http://127.0.0.1:8102/-/search?cid={}".format(mdc_doc_token)
+        downloadURL = "http://127.0.0.1:8102/-/media-download-start?doc_id={}".format(mdc_doc_token)
+
+        downloaded_info = json.loads(requests.post(infoURL).content.decode('utf-8'))
+        results = downloaded_info['results']
+
+        # Выявляем документы из раздачи на скачивание.
+        docs_to_download = []
+        if results:
+            for doc in results:
+                try:
+                    doc_id = doc['doc']['id']
+                    if doc_id:
+                        doc_is_downloaded = doc['fs']['status']
+
+                except(Exception):
+                    doc_id = doc['doc']['id']
+                    docs_to_download.append(doc_id)
+                    continue
+        else:
+            print("Неправильная раздача!")
+            sys.exit()
+
+        if docs_to_download:
+            started_downloading = 0
+            count_docs_to_download = len(docs_to_download)
+            print("Найдены документы для скачивания: {}".format(count_docs_to_download))
+            print("Ожидаю ответ Mediacoin на скачивание...")
+            for doc in docs_to_download:
+                downloadURL = "http://127.0.0.1:8102/-/media-download-start?doc_id={}".format(doc)
+                counter = 0
+                times_to_fail = 3
+                while counter < times_to_fail:
+                    download_response = requests.post(downloadURL).content.decode('utf-8')
+                    sleep(3)
+                    counter += 1
+                    if download_response == 'true':
+                        started_downloading += 1
+                        downloading_status = "Mediacoin подтвердил скачивание: [ {} / {} ]".format(started_downloading, count_docs_to_download)
+                        print(downloading_status, end = (started_downloading==count_docs_to_download) and '\n' or '\r')
+                        break
+                    elif counter == times_to_fail:
+                        print("\nНеуспешная попытка скачивания")
+
+        else:
+            print("Все раздачи и так скачаны!")
 
     except(Exception) as e:
+        print("\nОшибка скачивания:")
         print(e)
 
 
@@ -183,88 +223,109 @@ def main():
         try:
             res = requests.get("http://127.0.0.1:8102/-/info?type=debug").json()
             if (res["sessNick"] != ""):
-                nickname = res["sessNick"]
-                platform = res["typeStr"]
-                print("Mediacoin работает!")
+                print("Mediacoin запущен!")
                 break
         except(Exception):
             sleep(2)
 
-    query = {'client_token': client_token, 'platform': platform,
-                'client_version': version,
-                'client_extension': client_extension,
-                'nickname': nickname}
-
     mediaKitsune = server(IP, PORT, reconnect_seconds)
-    msg = pickle.dumps(query)
-    if query:
-        message = f'{len(msg):<{HEADER_LENGTH}}'.encode('utf-8') + msg
-        message_header = f"{len(message):<{HEADER_LENGTH}}".encode('utf-8')
 
-        while True:
+    while True:
+        try:
+            res = requests.get("http://127.0.0.1:8102/-/info?type=debug").json()
+            pl_downloads = res['fs']['pl_downloads']
+            nickname = res["sessNick"]
+            platform = res["typeStr"]
+            current_downloads = 0
+            for playlist in pl_downloads:
+                downl_count = int(playlist['downl_count'])
+                downl_paused = int(playlist['downl_paused'])
+                playlist_is_paused = downl_count - downl_paused != 0
+
+                if playlist_is_paused:
+                    current_downloads += 1
+
+            query = {'client_token': client_token, 'platform': platform,
+                        'client_version': version,
+                        'client_extension': client_extension,
+                        'nickname': nickname,
+                        'current_downloads': current_downloads}
+
+        except(Exception):
+            sleep(2)
+
+
+        if query:
+            msg = pickle.dumps(query)
+            message = f'{len(msg):<{HEADER_LENGTH}}'.encode('utf-8') + msg
+            message_header = f"{len(message):<{HEADER_LENGTH}}".encode('utf-8')
             mediaKitsune.send(query)
-            try:
-                answer_data = mediaKitsune.receive()
 
-                if answer_data == False:
-                    raise Exception('Сервер недоступен(1)')
+        try:
+            answer_data = mediaKitsune.receive()
 
-                answer_header = answer_data['header'].decode('utf-8')
-                answer_inside = answer_data['data']
-                answer = pickle.loads(answer_inside[HEADER_LENGTH:])
-                # print(answer)
+            if answer_data == False:
+                raise Exception('Сервер недоступен(1)')
 
-            except(Exception):
+            answer_header = answer_data['header'].decode('utf-8')
+            answer_inside = answer_data['data']
+            answer = pickle.loads(answer_inside[HEADER_LENGTH:])
+            # print(answer)
+
+        except(Exception):
+            mediaKitsune = server(IP, PORT, reconnect_seconds)
+            continue
+
+        except(ValueError, TypeError):
+            continue
+
+        try:
+            while True:
+                time_now()
+                if type(answer) == list:
+                    for dict in answer:
+                        if dict['goal'] == 'info':
+                            print(f"Ко-во активных пользователей kitsune: {dict['number_of_clients']}")
+                            print(f"Раздачи в очереди: {dict['count_client_docs']}")
+                            minutes = int(dict['return_minutes'])
+
+                        if dict['goal'] == 'download' and dict['mdc_doc_token']:
+                            print(f"Новая раздача: {dict['mdc_doc_token']}")
+                            download(dict['mdc_doc_token'])
+                        elif dict['goal'] == 'info' and dict['count_client_docs']:
+                            print('Задание отсутствует: превышен лимит одновременных скачиваний')
+
+                        if dict['goal'] == 'update':
+                            if client_extension == 'exe':
+                                # mediaKitsune.disconnect()
+                                threads_list = dict['update_threads']
+                                download_update(threads_list)
+                            else:
+                                print(f"{delimeter()}\nОбновите Kitsune клиент вручную!\n{delimeter()}")
+                            while True:
+                                sleep(1)
+
+                seconds = 60 * minutes
+                countdown('Следующее обращение через: ', seconds)
+                break
+
+        except IOError as e:
+            if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
+                print('1 Reading error: {}'.format(str(e)))
                 mediaKitsune = server(IP, PORT, reconnect_seconds)
-                continue
 
-            except(ValueError, TypeError):
-                continue
+            continue
 
-            try:
-                while True:
-                    time_now()
-                    if type(answer) == list:
-                        for dict in answer:
-                            if dict['goal'] == 'info':
-                                print(f"Ко-во активных пользователей kitsune: {dict['number_of_clients']}")
-                                print(f"Раздачи в очереди: {dict['count_client_docs']}")
-                                minutes = int(dict['return_minutes'])
-                            if dict['goal'] == 'download' and dict['mdc_doc_token']:
-                                print(f"Новая раздача: {dict['mdc_doc_token']}")
-                                download(dict['mdc_doc_token'])
-
-                            if dict['goal'] == 'update':
-                                if client_extension == 'exe':
-                                    # mediaKitsune.disconnect()
-                                    threads_list = dict['update_threads']
-                                    download_update(threads_list)
-                                else:
-                                    print(f"{delimeter()}\nОбновите Kitsune клиент вручную!\n{delimeter()}")
-                                while True:
-                                    sleep(1)
-
-                    seconds = 60 * minutes
-                    countdown('Следующее обращение через: ', seconds)
-                    break
-
-            except IOError as e:
-                if e.errno != errno.EAGAIN and e.errno != errno.EWOULDBLOCK:
-                    print('1 Reading error: {}'.format(str(e)))
-                    mediaKitsune = server(IP, PORT, reconnect_seconds)
-
-                continue
-
-            except Exception as e:
-                print('2 Reading error: {}'.format(str(e)))
-                countdown("Произошла ошибка, следующее обращение через:", reconnect_seconds)
-                mediaKitsune = server(IP, PORT, reconnect_seconds)
-                continue
+        except Exception as e:
+            print('2 Reading error: {}'.format(str(e)))
+            countdown("Произошла ошибка, следующее обращение через:", reconnect_seconds)
+            mediaKitsune = server(IP, PORT, reconnect_seconds)
+            continue
 
 
 if __name__ == '__main__':
 
-    print(colored('MediaKitsune приветствует!', 'green'))
+    print('MediaKitsune приветствует!')
     print('Новостной канал: t.me/MediaKitsune\nНаша группа: t.me/MediaKitsune_group')
 
     global HEADER_LENGTH, IP, PORT, client_token, version, client_extension
@@ -278,8 +339,9 @@ if __name__ == '__main__':
     print(client_extension)
     HEADER_LENGTH = 10
     IP, PORT = ("5.181.166.103", 37777)
+    # IP, PORT = ("127.0.0.1", 37777)
     reconnect_seconds = 30
-    version = "1.0.0.6"
+    version = "1.0.0.7"
     client_token = get_token()
 
     try:
