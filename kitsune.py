@@ -67,7 +67,7 @@ def download_update(threads_list):
     except(Exception) as e:
         print(e)
         print("Видимо, мы словили ошибку, отпишите @hibryid в telegram")
-        sleep(2000)
+        time.sleep(2000)
 
 
 def download(mdc_doc_token):
@@ -80,7 +80,7 @@ def download(mdc_doc_token):
                     print("Подключение установлено!")
                     break
             except(Exception):
-                sleep(2)
+                time.sleep(2)
 
         infoURL = "http://127.0.0.1:8102/-/search?cid={}".format(mdc_doc_token)
         downloadURL = "http://127.0.0.1:8102/-/media-download-start?doc_id={}".format(mdc_doc_token)
@@ -116,7 +116,7 @@ def download(mdc_doc_token):
                 times_to_fail = 3
                 while counter < times_to_fail:
                     download_response = requests.post(downloadURL).content.decode('utf-8')
-                    sleep(3)
+                    time.sleep(3)
                     counter += 1
                     if download_response == 'true':
                         started_downloading += 1
@@ -226,7 +226,7 @@ def main():
                 print("Mediacoin запущен!")
                 break
         except(Exception):
-            sleep(2)
+            time.sleep(2)
 
     mediaKitsune = server(IP, PORT, reconnect_seconds)
 
@@ -252,7 +252,7 @@ def main():
                         'current_downloads': current_downloads}
 
         except(Exception):
-            sleep(2)
+            time.sleep(2)
 
 
         if query:
@@ -285,7 +285,7 @@ def main():
                 if type(answer) == list:
                     for dict in answer:
                         if dict['goal'] == 'info':
-                            print(f"Ко-во активных пользователей kitsune: {dict['number_of_clients']}")
+                            print(f"Ко-во активных клиентов kitsune: {dict['number_of_clients']}")
                             print(f"Раздачи в очереди: {dict['count_client_docs']}")
                             minutes = int(dict['return_minutes'])
 
@@ -303,7 +303,7 @@ def main():
                             else:
                                 print(f"{delimeter()}\nОбновите Kitsune клиент вручную!\n{delimeter()}")
                             while True:
-                                sleep(1)
+                                time.sleep(1)
 
                 seconds = 60 * minutes
                 countdown('Следующее обращение через: ', seconds)
@@ -341,14 +341,21 @@ if __name__ == '__main__':
     IP, PORT = ("5.181.166.103", 37777)
     # IP, PORT = ("127.0.0.1", 37777)
     reconnect_seconds = 30
-    version = "1.0.0.7"
+    version = "1.0.0.8"
     client_token = get_token()
 
-    try:
-        if os.name =="nt":
-            colorama.init()
-        main()
-    except(KeyboardInterrupt):
-        print("\nMediaKitsune ждет вашего возвращения!")
-        sleep(3)
-        sys.exit()
+    if os.name =="nt":
+        colorama.init()
+
+    while True:
+        try:
+            main()
+        except(KeyboardInterrupt):
+            print("\nMediaKitsune ждет вашего возвращения!")
+            time.sleep(3)
+            sys.exit()
+        except(Exception) as e:
+            print(e)
+            print("Произошла непредвиденная ошибка клиента, перезапуск через 5 секунд")
+            time.sleep(5)
+            continue
