@@ -33,6 +33,7 @@ def countdown(string, t):
 
 
 def download_update(threads_list):
+    print("Скачиваю обновление")
     try:
         for update_thread in threads_list:
             is_kitsune = update_thread.split("/")[-1:][0] == "kitsune.exe"
@@ -102,8 +103,7 @@ def download(mdc_doc_token):
                     docs_to_download.append(doc_id)
                     continue
         else:
-            print("Неправильная раздача!")
-            sys.exit()
+            print("Неправильный плейлист! Kitsune скачивает плейлисты только целиком!")
 
         if docs_to_download:
             started_downloading = 0
@@ -336,12 +336,12 @@ if __name__ == '__main__':
     elif __file__:
         client_extension = os.path.abspath(__file__).split(".")[-1:][0]
 
-    print(client_extension)
     HEADER_LENGTH = 10
     IP, PORT = ("5.181.166.103", 37777)
     # IP, PORT = ("127.0.0.1", 37777)
     reconnect_seconds = 30
-    version = "1.0.0.8"
+    version = "1.0.0.9"
+    print(f"Версия kitsune: {version}")
     client_token = get_token()
 
     if os.name =="nt":
