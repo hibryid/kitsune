@@ -68,7 +68,7 @@ def download_update(threads_list):
     except(Exception) as e:
         print(e)
         print("Видимо, мы словили ошибку, отпишите @hibryid в telegram")
-        time.sleep(2000)
+        time.sleep(200000)
 
 
 def download(mdc_doc_token):
@@ -204,13 +204,16 @@ class server():
             message_length = int(message_header.decode('utf-8').strip())
             return {'header': message_header, 'data': self.server_socket.recv(message_length)}
 
-        except(ConnectionResetError, ConnectionResetError):
+        except(ConnectionResetError, ConnectionResetError) as e:
+            print(f'ошибка = {e}')
             self.server_socket.close()
             self.server_socket.shutdown(socket.SHUT_RDWR)
             return False
 
         except(socket.timeout) as e:
             print(f'timeout = {e}')
+            self.server_socket.close()
+            self.server_socket.shutdown(socket.SHUT_RDWR)
             return False
 
 
@@ -276,23 +279,30 @@ def main():
             mediaKitsune = server(IP, PORT, reconnect_seconds)
             continue
 
-        except(ValueError, TypeError):
-            continue
 
         try:
             while True:
                 time_now()
                 if type(answer) == list:
+                    goal_download = False
+                    for dict in answer:
+                        if dict['goal'] == 'download' and dict['mdc_doc_token']:
+                            goal_download = True
+                            break
+                        else:
+                            goal_download = False
+
                     for dict in answer:
                         if dict['goal'] == 'info':
                             print(f"Ко-во активных клиентов kitsune: {dict['number_of_clients']}")
                             print(f"Раздачи в очереди: {dict['count_client_docs']}")
                             minutes = int(dict['return_minutes'])
 
+
                         if dict['goal'] == 'download' and dict['mdc_doc_token']:
                             print(f"Новая раздача: {dict['mdc_doc_token']}")
                             download(dict['mdc_doc_token'])
-                        elif dict['goal'] == 'info' and dict['count_client_docs']:
+                        elif not goal_download and dict['goal'] == 'info' and dict['count_client_docs'] != 0:
                             print('Задание отсутствует: превышен лимит одновременных скачиваний')
 
                         if dict['goal'] == 'update':
@@ -340,7 +350,7 @@ if __name__ == '__main__':
     IP, PORT = ("5.181.166.103", 37777)
     # IP, PORT = ("127.0.0.1", 37777)
     reconnect_seconds = 30
-    version = "1.0.0.9"
+    version = "1.0.01"
     print(f"Версия kitsune: {version}")
     client_token = get_token()
 
