@@ -89,7 +89,7 @@ def download(mdc_doc_token):
         downloaded_info = json.loads(requests.post(infoURL).content.decode('utf-8'))
         results = downloaded_info['results']
 
-        # Выявляем документы из раздачи на скачивание.
+        # Выявляем документы из плейлисты на скачивание.
         docs_to_download = []
         if results:
             for doc in results:
@@ -127,7 +127,7 @@ def download(mdc_doc_token):
                         print("\nНеуспешная попытка скачивания")
 
         else:
-            print("Все раздачи и так скачаны!")
+            print("Все плейлисты и так скачаны!")
 
     except(Exception) as e:
         print("\nОшибка скачивания:")
@@ -178,20 +178,14 @@ class server():
         message = f'{len(msg):<{self.HEADER_LENGTH}}'.encode('utf-8') + msg
         message_header = f"{len(message):<{self.HEADER_LENGTH}}".encode('utf-8')
 
-        connected = False
         reconnect_seconds = 5
-        while not connected:
-            try:
-                self.server_socket.send(message_header + message)
-                connected = True
-                continue
-            except(ConnectionResetError, TimeoutError) as e:
-                print(f'Ошибка(1): {e}')
-                connected = False
-                self.server_socket.shutdown(socket.SHUT_RDWR)
-                countdown('Сервер недоступен, переотправка сообщения через: ', reconnect_seconds)
-                mediaKitsune = server(IP, PORT, reconnect_seconds)
-                continue
+        try:
+            self.server_socket.send(message_header + message)
+        except(ConnectionResetError, TimeoutError) as e:
+            print(f'Ошибка(1): {e}')
+            self.server_socket.shutdown(socket.SHUT_RDWR)
+            countdown('Сервер недоступен, переотправка сообщения через: ', reconnect_seconds)
+            mediaKitsune = server(IP, PORT, reconnect_seconds)
 
     def receive(self):
         try:
@@ -295,12 +289,12 @@ def main():
                     for dict in answer:
                         if dict['goal'] == 'info':
                             print(f"Ко-во активных клиентов kitsune: {dict['number_of_clients']}")
-                            print(f"Раздачи в очереди: {dict['count_client_docs']}")
+                            print(f"Плейлисты в очереди: {dict['count_client_docs']}")
                             minutes = int(dict['return_minutes'])
 
 
                         if dict['goal'] == 'download' and dict['mdc_doc_token']:
-                            print(f"Новая раздача: {dict['mdc_doc_token']}")
+                            print(f"Новый плейлист: {dict['mdc_doc_token']}")
                             download(dict['mdc_doc_token'])
                         elif not goal_download and dict['goal'] == 'info' and dict['count_client_docs'] != 0:
                             print('Задание отсутствует: превышен лимит одновременных скачиваний')
@@ -350,7 +344,7 @@ if __name__ == '__main__':
     IP, PORT = ("5.181.166.103", 37777)
     # IP, PORT = ("127.0.0.1", 37777)
     reconnect_seconds = 30
-    version = "1.0.01"
+    version = "1.0.2"
     print(f"Версия kitsune: {version}")
     client_token = get_token()
 
