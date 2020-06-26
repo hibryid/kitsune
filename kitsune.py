@@ -341,10 +341,10 @@ if __name__ == '__main__':
         client_extension = os.path.abspath(__file__).split(".")[-1:][0]
 
     HEADER_LENGTH = 10
-    IP, PORT = ("5.181.166.103", 37777)
+    IP, PORT = ("140.238.170.213", 37777)
     # IP, PORT = ("127.0.0.1", 37777)
     reconnect_seconds = 30
-    version = "1.0.2"
+    version = "1.0.4"
     print(f"Версия kitsune: {version}")
     client_token = get_token()
 
